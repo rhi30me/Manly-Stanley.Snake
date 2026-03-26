@@ -4,6 +4,8 @@
 ## Manly-Stanley-Snake.py
 Manly Stanley is a colorful rainbow snake game built with Python and Pygame. Eat the flashing stars, grow longer, and have fun :) You will need Python 3.8 or higher and the Pygame library installed on your machine. Once Pygame is installed, you can launch the game with the following command: python3 manly-stanley-snake.py. 
 
+## git clone https://github.com/rhi30me/manly-stanley.snake.git && cd manly-stanley-snake on command line (for mac0s
+
 ## Features
 Rainbow-colored snake that grows as you eat, star-shaped food in randomized colors, generated randomly throughout the grid you play on. Animated snake eyes that follow your direction, speed increases every 5 points, High score tracking (for the most part )
 
