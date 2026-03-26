@@ -1,0 +1,334 @@
+# END U$  AGGRESS!0N | HEALTHCARE not B0MBS
+import pygame
+import random
+import math
+import sys
+
+pygame.init()
+
+WIDTH, HEIGHT = 800, 600
+CELL = 20
+COLS = WIDTH // CELL
+ROWS = HEIGHT // CELL
+FPS = 12
+
+BLACK      = (0, 0, 0)
+WHITE      = (255, 255, 255)
+DARK_GRAY  = (20, 20, 30)
+GRID_COLOR = (30, 30, 45)
+
+RAINBOW = [
+    (255, 80,  80),
+    (255, 160, 60),
+    (255, 230, 60),
+    (80,  220, 80),
+    (60,  180, 255),
+    (150, 80,  255),
+    (255, 80,  200),
+]
+
+FOOD_COLORS = [
+    (255, 50,  50),
+    (255, 165, 0),
+    (255, 255, 0),
+    (50,  255, 50),
+    (0,   200, 255),
+    (200, 50,  255),
+    (255, 50,  150),
+    (255, 255, 255),
+]
+
+# Screen setup
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("🐍 Manly Stanley")
+clock = pygame.time.Clock()
+
+# Fonts
+font_big   = pygame.font.SysFont("Arial", 64, bold=True)
+font_med   = pygame.font.SysFont("Arial", 32, bold=True)
+font_small = pygame.font.SysFont("Arial", 22)
+
+
+
+def draw_grid():
+    for x in range(0, WIDTH, CELL):
+        pygame.draw.line(screen, GRID_COLOR, (x, 0), (x, HEIGHT))
+    for y in range(0, HEIGHT, CELL):
+        pygame.draw.line(screen, GRID_COLOR, (0, y), (WIDTH, y))
+
+
+def lerp_color(c1, c2, t):
+    return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+
+
+def rainbow_color(index, total):
+    """Smoothly cycle through RAINBOW palette based on position."""
+    if total <= 1:
+        return RAINBOW[0]
+    t      = (index / total) * len(RAINBOW)
+    idx    = int(t) % len(RAINBOW)
+    frac   = t - int(t)
+    return lerp_color(RAINBOW[idx], RAINBOW[(idx + 1) % len(RAINBOW)], frac)
+
+
+def draw_rounded_cell(surface, color, gx, gy, radius=6):
+    rect = pygame.Rect(gx * CELL + 1, gy * CELL + 1, CELL - 2, CELL - 2)
+    pygame.draw.rect(surface, color, rect, border_radius=radius)
+    # highlight
+    hi = tuple(min(255, c + 60) for c in color)
+    pygame.draw.rect(surface, hi, rect, width=2, border_radius=radius)
+
+
+def draw_food(surface, fx, fy, color, tick):
+    """Pulsing star-shaped food."""
+    cx = fx * CELL + CELL // 2
+    cy = fy * CELL + CELL // 2
+    pulse = 1 + 0.15 * math.sin(tick * 0.15)
+    r_out = int(CELL * 0.45 * pulse)
+    r_in  = int(CELL * 0.20 * pulse)
+    points = []
+    for i in range(10):
+        angle  = math.radians(i * 36 - 90)
+        radius = r_out if i % 2 == 0 else r_in
+        points.append((cx + radius * math.cos(angle),
+                       cy + radius * math.sin(angle)))
+    pygame.draw.polygon(surface, color, points)
+    glow = tuple(min(255, c + 80) for c in color)
+    pygame.draw.polygon(surface, glow, points, 2)
+
+
+def draw_eyes(surface, head, direction):
+    hx = head[0] * CELL + CELL // 2
+    hy = head[1] * CELL + CELL // 2
+    dx, dy = direction
+    perp = (-dy, dx)
+    for sign in (+1, -1):
+        ex = hx + dx * 4 + perp[0] * 4 * sign
+        ey = hy + dy * 4 + perp[1] * 4 * sign
+        pygame.draw.circle(surface, WHITE, (int(ex), int(ey)), 3)
+        pygame.draw.circle(surface, BLACK, (int(ex + dx), int(ey + dy)), 2)
+
+
+def show_text_centered(surface, text, font, color, y):
+    surf = font.render(text, True, color)
+    x = (WIDTH - surf.get_width()) // 2
+    surface.blit(surf, (x, y))
+
+
+def glow_text(surface, text, font, color, y, tick):
+    alpha = int(180 + 75 * math.sin(tick * 0.08))
+    glow  = tuple(min(255, c + 60) for c in color[:3])
+    show_text_centered(surface, text, font, glow + (alpha,), y)
+    show_text_centered(surface, text, font, color, y)
+
+
+# ── particlessss ───────────────────────────────────────────────────────────
+
+class Particle:
+    def __init__(self, x, y, color):
+        self.x  = x
+        self.y  = y
+        self.vx = random.uniform(-3, 3)
+        self.vy = random.uniform(-3, 3)
+        self.color = color
+        self.life  = random.randint(20, 40)
+        self.max_life = self.life
+        self.r = random.randint(3, 7)
+
+    def update(self):
+        self.x   += self.vx
+        self.y   += self.vy
+        self.vy  += 0.15
+        self.life -= 1
+
+    def draw(self, surface):
+        alpha = self.life / self.max_life
+        r, g, b = self.color
+        col = (int(r * alpha), int(g * alpha), int(b * alpha))
+        pygame.draw.circle(surface, col, (int(self.x), int(self.y)), self.r)
+
+
+particles = []
+
+def spawn_particles(gx, gy, color, n=20):
+    cx = gx * CELL + CELL // 2
+    cy = gy * CELL + CELL // 2
+    for _ in range(n):
+        particles.append(Particle(cx, cy, color))
+
+
+# imsotired. iss he even grading this  or is a TA jfccc ────────────────────────────────────────────────────────────────
+
+def new_game():
+    snake     = [(COLS // 2, ROWS // 2)]
+    direction = (1, 0)
+    next_dir  = (1, 0)
+    score     = 0
+    food, food_color = spawn_food(snake)
+    return snake, direction, next_dir, score, food, food_color
+
+
+def spawn_food(snake):
+    while True:
+        pos = (random.randint(0, COLS - 1), random.randint(0, ROWS - 1))
+        if pos not in snake:
+            return pos, random.choice(FOOD_COLORS)
+
+
+
+def draw_start_screen(tick, hi):
+    screen.fill(DARK_GRAY)
+    draw_grid()
+
+    # fun goofy mf title screen so mf manly
+    title = "MANLY STANLEY"
+    total = len(title)
+    x_off = WIDTH // 2 - (total * 38) // 2
+    for i, ch in enumerate(title):
+        wave_y = int(20 * math.sin(tick * 0.07 + i * 0.5))
+        col    = rainbow_color(i, total)
+        surf   = font_big.render(ch, True, col)
+        screen.blit(surf, (x_off + i * 38, 130 + wave_y))
+
+    show_text_centered(screen, "Use ARROW KEYS or WASD to move",
+                       font_small, (180, 180, 200), 260)
+    show_text_centered(screen, "Eat food to grow — don't hit walls or yourself!",
+                       font_small, (180, 180, 200), 290)
+
+    if hi > 0:
+        show_text_centered(screen, f"Best: {hi}", font_med, (255, 220, 80), 340)
+
+    blink_col = RAINBOW[int(tick / 15) % len(RAINBOW)]
+    show_text_centered(screen, "Press SPACE to Play", font_med, blink_col, 410)
+
+
+def draw_game_over(score, hi, tick):
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 160))
+    screen.blit(overlay, (0, 0))
+
+    show_text_centered(screen, "GAME OVER", font_big, (255, 60, 60), 180)
+    show_text_centered(screen, f"Score: {score}", font_med, WHITE, 280)
+    if score >= hi:
+        show_text_centered(screen, "🎉 New Best!", font_med, (255, 220, 50), 320)
+    else:
+        show_text_centered(screen, f"Best: {hi}", font_med, (200, 200, 200), 320)
+
+    blink_col = RAINBOW[int(tick / 15) % len(RAINBOW)]
+    show_text_centered(screen, "SPACE to restart  |  Q to quit",
+                       font_med, blink_col, 390)
+
+
+# ── main loop ─────────────────────────────────────────────────────────────────
+
+def main():
+    state = "start"   # "start" | "play" | "dead"
+    snake, direction, next_dir, score, food, food_color = new_game()
+    hi_score = 0
+    tick = 0
+
+    while True:
+        clock.tick(FPS)
+        tick += 1
+
+        # ── events ──
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+                # quit anytime
+                if event.key == pygame.K_q:
+                    pygame.quit(); sys.exit()
+
+                # start / re
+                if event.key == pygame.K_SPACE:
+                    if state in ("start", "dead"):
+                        snake, direction, next_dir, score, food, food_color = new_game()
+                        particles.clear()
+                        state = "play"
+
+                # dir input (prevent 180°)
+                if state == "play":
+                    if event.key in (pygame.K_UP, pygame.K_w) and direction != (0, 1):
+                        next_dir = (0, -1)
+                    elif event.key in (pygame.K_DOWN, pygame.K_s) and direction != (0, -1):
+                        next_dir = (0, 1)
+                    elif event.key in (pygame.K_LEFT, pygame.K_a) and direction != (1, 0):
+                        next_dir = (-1, 0)
+                    elif event.key in (pygame.K_RIGHT, pygame.K_d) and direction != (-1, 0):
+                        next_dir = (1, 0)
+
+        # ── update particles always ──
+        for p in particles:
+            p.update()
+        particles[:] = [p for p in particles if p.life > 0]
+
+        # ── game logic ──
+        if state == "play":
+            direction = next_dir
+            hx, hy    = snake[0]
+            new_head  = (hx + direction[0], hy + direction[1])
+
+            # wall collision
+            if not (0 <= new_head[0] < COLS and 0 <= new_head[1] < ROWS):
+                hi_score = max(hi_score, score)
+                spawn_particles(hx, hy, (255, 80, 80), 40)
+                state = "dead"
+            # self collision
+            elif new_head in snake:
+                hi_score = max(hi_score, score)
+                spawn_particles(hx, hy, (255, 80, 80), 40)
+                state = "dead"
+            else:
+                snake.insert(0, new_head)
+                if new_head == food:
+                    score += 1
+                    food, food_color = spawn_food(snake)
+                else:
+                    snake.pop()
+
+        # ── draw ──
+        screen.fill(DARK_GRAY)
+        draw_grid()
+
+        if state == "start":
+            draw_start_screen(tick, hi_score)
+        else:
+            # draw food
+            draw_food(screen, food[0], food[1], food_color, tick)
+
+            total = len(snake)
+            for i, (sx, sy) in enumerate(snake):
+                col = rainbow_color(i, total)
+                draw_rounded_cell(screen, col, sx, sy)
+
+            if snake:
+                draw_eyes(screen, snake[0], direction)
+
+            # particles
+            for p in particles:
+                p.draw(screen)
+
+            
+            score_surf = font_med.render(f"Score: {score}  Best: {hi_score}",
+                                         True, WHITE)
+            screen.blit(score_surf, (10, 8))
+
+            speed_surf = font_small.render(
+                f"Speed: {min(score // 5 + 1, 5)}x", True, (150, 150, 180))
+            screen.blit(speed_surf, (WIDTH - 110, 12))
+
+            if state == "dead":
+                draw_game_over(score, hi_score, tick)
+
+        pygame.display.flip()
+
+        # accelerrerate !!! ! ! ! ! ! ! !  adderall snake
+        if state == "play":
+            clock.tick(FPS + min(score // 5, 8))
+
+
+if __name__ == "__main__":
+    main()
+## NO MORE US AGGRESSION. END WARS in !r@ n
